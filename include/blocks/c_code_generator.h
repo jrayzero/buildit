@@ -10,11 +10,11 @@ namespace block {
 class c_code_generator : public block_visitor {
 private:
 	void emit_binary_expr(binary_expr::Ptr, std::string);
-
 public:
 	using block_visitor::visit;
-	c_code_generator(std::ostream &_oss) : oss(_oss) {}
-	std::ostream &oss;
+//	c_code_generator(std::ostream &_oss) : oss(_oss) {}
+//	std::ostream &oss;
+        std::string last;
 	int curr_indent = 0;
 	virtual void visit(not_expr::Ptr);
 	virtual void visit(and_expr::Ptr);
@@ -68,9 +68,10 @@ public:
 	
 
 	static void generate_code(block::Ptr ast, std::ostream &oss, int indent = 0) {
-		c_code_generator generator(oss);
+		c_code_generator generator;
 		generator.curr_indent = indent;
 		ast->accept(&generator);
+		oss << generator.last;
 		oss << std::endl;
 	}
 };

@@ -6,9 +6,12 @@
 
 namespace block {
 void c_code_generator::visit(not_expr::Ptr a) {
-	oss << "!(";
-	a->expr1->accept(this);
-	oss << ")";
+  std::stringstream ss;
+  ss << "!(";
+  a->expr1->accept(this);
+  ss << last;
+  ss << ")";
+  last = ss.str();
 }
 
 static bool expr_needs_bracket(expr::Ptr a) {
@@ -20,19 +23,27 @@ static bool expr_needs_bracket(expr::Ptr a) {
 }
 void c_code_generator::emit_binary_expr(binary_expr::Ptr a,
 					std::string character) {
-	if (expr_needs_bracket(a->expr1)) {
-		oss << "(";
-		a->expr1->accept(this);
-		oss << ")";
-	} else
-		a->expr1->accept(this);
-	oss << " " << character << " ";
-	if (expr_needs_bracket(a->expr2)) {
-		oss << "(";
-		a->expr2->accept(this);
-		oss << ")";
-	} else
-		a->expr2->accept(this);
+  std::stringstream ss;
+  if (expr_needs_bracket(a->expr1)) {
+    ss << "(";
+    a->expr1->accept(this);
+    ss << last;
+    ss << ")";
+  } else {
+    a->expr1->accept(this);
+    ss << last;
+  }
+  ss << " " << character << " ";
+  if (expr_needs_bracket(a->expr2)) {
+    ss << "(";
+    a->expr2->accept(this);
+    ss << last;
+    ss << ")";
+  } else {
+    a->expr2->accept(this);
+    ss << last;
+  }
+  last = ss.str();
 }
 void c_code_generator::visit(and_expr::Ptr a) { emit_binary_expr(a, "&&"); }
 void c_code_generator::visit(bitwise_and_expr::Ptr a) { emit_binary_expr(a, "&"); }
@@ -49,395 +60,503 @@ void c_code_generator::visit(gte_expr::Ptr a) { emit_binary_expr(a, ">="); }
 void c_code_generator::visit(equals_expr::Ptr a) { emit_binary_expr(a, "=="); }
 void c_code_generator::visit(ne_expr::Ptr a) { emit_binary_expr(a, "!="); }
 void c_code_generator::visit(mod_expr::Ptr a) { emit_binary_expr(a, "%"); }
-void c_code_generator::visit(var_expr::Ptr a) { oss << a->var1->var_name; }
-void c_code_generator::visit(int_const::Ptr a) { oss << a->value; }
+void c_code_generator::visit(var_expr::Ptr a) { last = a->var1->var_name; }
+void c_code_generator::visit(int_const::Ptr a) { last = std::to_string(a->value); }
 void c_code_generator::visit(double_const::Ptr a) {
-	oss << std::setprecision(15);
-	oss << a->value;
-	if (floor(a->value) == a->value)
-		oss << ".0";
+  std::stringstream ss;
+  ss << std::setprecision(15);
+  ss << a->value;
+  if (floor(a->value) == a->value)
+    ss << ".0";
+  last = ss.str();
 }
 void c_code_generator::visit(float_const::Ptr a) {
-	oss << std::setprecision(15);
-	oss << a->value;
-	if (floor(a->value) == a->value)
-		oss << ".0";
-	oss << "f";
+  std::stringstream ss;
+  ss << std::setprecision(15);
+  ss << a->value;
+  if (floor(a->value) == a->value)
+    ss << ".0";
+  ss << "f";
+  last = ss.str();
 }
 void c_code_generator::visit(string_const::Ptr a) {
-	oss << "\"" << a->value << "\"";
+  std::stringstream ss;
+  ss << "\"" << a->value << "\"";
+  last = ss.str();
 }
 void c_code_generator::visit(assign_expr::Ptr a) {
-	if (expr_needs_bracket(a->var1)) {
-		oss << "(";
-		a->var1->accept(this);
-		oss << ")";
-	} else
-		a->var1->accept(this);
-
-	oss << " = ";
-	a->expr1->accept(this);
+  std::stringstream ss;
+  if (expr_needs_bracket(a->var1)) {
+    ss << "(";
+    a->var1->accept(this);
+    ss << last;
+    ss << ")";
+  } else {
+    a->var1->accept(this);
+    ss << last;
+  }
+  ss << " = ";
+  a->expr1->accept(this);
+  ss << last;
+  last = ss.str();
 }
 void c_code_generator::visit(expr_stmt::Ptr a) {
-	a->expr1->accept(this);
-	oss << ";";
-	if (a->annotation != "")
-		oss << " //" << a->annotation;
+  std::stringstream ss;
+  a->expr1->accept(this);
+  ss << last;
+  ss << ";";
+  if (a->annotation != "")
+    ss << " //" << a->annotation;  
+  last = ss.str();
 }
 void c_code_generator::visit(stmt_block::Ptr a) {
-	oss << "{" << std::endl;
-	curr_indent += 1;
-	for (auto stmt : a->stmts) {
-		printer::indent(oss, curr_indent);
-		stmt->accept(this);
-		oss << std::endl;
-	}
-	curr_indent -= 1;
-	printer::indent(oss, curr_indent);
+  std::stringstream ss;
+  ss << "{" << std::endl;
+  curr_indent += 1;
+  for (auto stmt : a->stmts) {
+    printer::indent(ss, curr_indent);
+    stmt->accept(this);
+    ss << last;
+    ss << std::endl;
+  }
+  curr_indent -= 1;
+  printer::indent(ss, curr_indent);
 
-	oss << "}";
+  ss << "}";
+  last = ss.str();
 }
 void c_code_generator::visit(scalar_type::Ptr type) {
-	switch(type->scalar_type_id) {
-		case scalar_type::SHORT_INT_TYPE: oss << "short int"; break;
-		case scalar_type::UNSIGNED_SHORT_INT_TYPE: oss << "unsigned short int"; break;
-		case scalar_type::INT_TYPE: oss << "int"; break;
-		case scalar_type::UNSIGNED_INT_TYPE: oss << "unsigned int"; break;
-		case scalar_type::LONG_INT_TYPE: oss << "long int"; break;
-		case scalar_type::UNSIGNED_LONG_INT_TYPE: oss << "unsigned long int"; break;
-		case scalar_type::LONG_LONG_INT_TYPE: oss << "long long int"; break;
-		case scalar_type::UNSIGNED_LONG_LONG_INT_TYPE: oss << "unsigned long long int"; break;
-		case scalar_type::CHAR_TYPE: oss << "char"; break;
-		case scalar_type::UNSIGNED_CHAR_TYPE: oss << "unsigned char"; break;
-		case scalar_type::VOID_TYPE: oss << "void"; break;
-		case scalar_type::FLOAT_TYPE: oss << "float"; break;
-		case scalar_type::DOUBLE_TYPE: oss << "double"; break;
-		default:
-			assert(false && "Invalid scalar type");
-	}
+  std::stringstream ss;
+  switch(type->scalar_type_id) {
+    case scalar_type::BOOL_TYPE: ss << "bool"; break;
+    case scalar_type::SIGNED_CHAR_TYPE: ss << "signed char"; break;
+    case scalar_type::SHORT_INT_TYPE: ss << "short int"; break;
+    case scalar_type::UNSIGNED_SHORT_INT_TYPE: ss << "unsigned short int"; break;
+    case scalar_type::INT_TYPE: ss << "int"; break;
+    case scalar_type::UNSIGNED_INT_TYPE: ss << "unsigned int"; break;
+    case scalar_type::LONG_INT_TYPE: ss << "long int"; break;
+    case scalar_type::UNSIGNED_LONG_INT_TYPE: ss << "unsigned long int"; break;
+    case scalar_type::LONG_LONG_INT_TYPE: ss << "long long int"; break;
+    case scalar_type::UNSIGNED_LONG_LONG_INT_TYPE: ss << "unsigned long long int"; break;
+    case scalar_type::CHAR_TYPE: ss << "char"; break;
+    case scalar_type::UNSIGNED_CHAR_TYPE: ss << "unsigned char"; break;
+    case scalar_type::VOID_TYPE: ss << "void"; break;
+    case scalar_type::FLOAT_TYPE: ss << "float"; break;
+    case scalar_type::DOUBLE_TYPE: ss << "double"; break;
+    default:
+      assert(false && "Invalid scalar type");
+  }
+  last = ss.str();
 }
 void c_code_generator::visit(named_type::Ptr type) {
-	oss << type->type_name;
-	if (type->template_args.size()) {
-		oss << "<";
-		bool needs_comma = false;
-		for (auto a: type->template_args) {
-			if (needs_comma)
-				oss << ", ";
-			needs_comma = true;
-			a->accept(this);	
-		}
-		oss << ">";
-	}
+  std::stringstream ss;
+  ss << type->type_name;
+  if (type->template_args.size()) {
+    ss << "<";
+    bool needs_comma = false;
+    for (auto a: type->template_args) {
+      if (needs_comma)
+	ss << ", ";
+      needs_comma = true;
+      a->accept(this);	
+      ss << last;
+    }
+    ss << ">";
+  }
+  last = ss.str();
 }
 void c_code_generator::visit(pointer_type::Ptr type) {
-	if (!isa<scalar_type>(type->pointee_type) &&
-	    !isa<pointer_type>(type->pointee_type) &&
-	    !isa<named_type>(type->pointee_type))
-		assert(
-		    false &&
-		    "Printing pointers of complex type is not supported yet");
-	type->pointee_type->accept(this);
-	oss << "*";
+  std::stringstream ss;
+  if (!isa<scalar_type>(type->pointee_type) &&
+      !isa<pointer_type>(type->pointee_type) &&
+      !isa<named_type>(type->pointee_type))
+    assert(
+	   false &&
+	   "Printing pointers of complex type is not supported yet");
+  type->pointee_type->accept(this);
+  ss << last;
+  ss << "*";
+  last = ss.str();
 }
 void c_code_generator::visit(array_type::Ptr type) {
-	if (!isa<scalar_type>(type->element_type) &&
-	    !isa<pointer_type>(type->element_type) &&
-	    !isa<named_type>(type->element_type))
-		assert(false &&
-		       "Printing arrays of complex type is not supported yet");
-	type->element_type->accept(this);
-	if (type->size != -1)
-		oss << "[" << type->size << "]";
-	else
-		oss << "[]";
+  std::stringstream ss;
+  if (!isa<scalar_type>(type->element_type) &&
+      !isa<pointer_type>(type->element_type) &&
+      !isa<named_type>(type->element_type))
+    assert(false &&
+	   "Printing arrays of complex type is not supported yet");
+  type->element_type->accept(this);
+  ss << last;
+  if (type->size != -1)
+    ss << "[" << type->size << "]";
+  else
+    ss << "[]";
+  last = ss.str();
 }
 void c_code_generator::visit(builder_var_type::Ptr type) {
-	if (type->builder_var_type_id == builder_var_type::DYN_VAR)
-		oss << "builder::dyn_var<";
-	else if (type->builder_var_type_id == builder_var_type::STATIC_VAR)
-		oss << "builder::static_var<";
-	type->closure_type->accept(this);
-	oss << ">";
+  std::stringstream ss;
+  if (type->builder_var_type_id == builder_var_type::DYN_VAR)
+    ss << "builder::dyn_var<";
+  else if (type->builder_var_type_id == builder_var_type::STATIC_VAR)
+    ss << "builder::static_var<";
+  type->closure_type->accept(this);
+  ss << last;
+  ss << ">";
+  last = ss.str();
 }
-void c_code_generator::visit(var::Ptr var) { oss << var->var_name; }
+void c_code_generator::visit(var::Ptr var) { 
+  last = var->var_name;
+}
 
-static void print_array_decl(std::ostream &oss, array_type::Ptr atype, var::Ptr decl_var, c_code_generator* self, 
-		std::stringstream &append) {
-	append << "[";
-	if (atype->size != -1)
-		append << atype->size;
-	append << "]";
+static void print_array_decl(array_type::Ptr atype, var::Ptr decl_var, c_code_generator* self, 
+				    std::stringstream &append) {
+  std::stringstream ss;
+  append << "[";
+  if (atype->size != -1)
+    append << atype->size;
+  append << "]";
 
-	if (isa<array_type>(atype->element_type))
-		print_array_decl(oss, to<array_type>(atype->element_type), decl_var, self, append);
-	else if (isa<scalar_type>(atype->element_type) || isa<pointer_type>(atype->element_type) 
-			|| isa<named_type>(atype->element_type)) {
-		atype->element_type->accept(self);	
-		if (decl_var->hasMetadata<std::vector<std::string>>("attributes")) {
-			const auto &attributes = decl_var->getMetadata<std::vector<std::string>>("attributes");
-			for (auto attr: attributes) {
-				oss << " " << attr;
-			}
-		}
-		oss << " ";
-		oss << decl_var->var_name;
-		oss << append.str();	
-	} else {
-		assert(false && "Printing arrays of complex type is not supported yet");
-	}
+  if (isa<array_type>(atype->element_type)) {
+    print_array_decl(to<array_type>(atype->element_type), decl_var, self, append);
+    ss << self->last;
+  }
+  else if (isa<scalar_type>(atype->element_type) || isa<pointer_type>(atype->element_type) 
+	   || isa<named_type>(atype->element_type)) {
+    atype->element_type->accept(self);	
+    ss << self->last;
+    if (decl_var->hasMetadata<std::vector<std::string>>("attributes")) {
+      const auto &attributes = decl_var->getMetadata<std::vector<std::string>>("attributes");
+      for (auto attr: attributes) {
+	ss << " " << attr;
+      }
+    }
+    ss << " ";
+    ss << decl_var->var_name;
+    ss << append.str();	
+  } else {
+    assert(false && "Printing arrays of complex type is not supported yet");
+  }
+  //  return ss.str();
+  self->last = ss.str();
 }
 
 void c_code_generator::visit(decl_stmt::Ptr a) {
-	if (isa<function_type>(a->decl_var->var_type)) {
-		function_type::Ptr type =
-		    to<function_type>(a->decl_var->var_type);
-		type->return_type->accept(this);
-		oss << " (*";
-		oss << a->decl_var->var_name;
-		oss << ")(";
-		for (unsigned int i = 0; i < type->arg_types.size(); i++) {
-			type->arg_types[i]->accept(this);
-			if (i != type->arg_types.size() - 1)
-				oss << ", ";
-		}
-		oss << ")";
-		if (a->init_expr != nullptr) {
-			oss << " = ";
-			a->init_expr->accept(this);
-		}
-		oss << ";";
-		return;
-	} else if (isa<array_type>(a->decl_var->var_type)) {
-		array_type::Ptr type = to<array_type>(a->decl_var->var_type);
-		std::stringstream s;
-		print_array_decl(oss, type, a->decl_var, this, s);
-		if (a->init_expr != nullptr) {
-			oss << " = ";
-			a->init_expr->accept(this);
-		}
-		oss << ";";
-		return;
-	}
+  std::stringstream ss;
+  if (isa<function_type>(a->decl_var->var_type)) {
+    function_type::Ptr type =
+      to<function_type>(a->decl_var->var_type);
+    type->return_type->accept(this);
+    ss << last;
+    ss << " (*";
+    ss << a->decl_var->var_name;
+    ss << ")(";
+    for (unsigned int i = 0; i < type->arg_types.size(); i++) {
+      type->arg_types[i]->accept(this);
+      ss << last;
+      if (i != type->arg_types.size() - 1)
+	ss << ", ";
+    }
+    ss << ")";
+    if (a->init_expr != nullptr) {
+      ss << " = ";
+      a->init_expr->accept(this);
+      ss << last;
+    }
+    ss << ";";
+    last = ss.str();
+    return;
+  } else if (isa<array_type>(a->decl_var->var_type)) {
+    array_type::Ptr type = to<array_type>(a->decl_var->var_type);
+    std::stringstream s;
+    print_array_decl(type, a->decl_var, this, s);
+    ss << last;
+    if (a->init_expr != nullptr) {
+      ss << " = ";
+      a->init_expr->accept(this);
+      ss << last;
+    }
+    ss << ";";
+    last = ss.str();
+    return;
+  }
 
-	a->decl_var->var_type->accept(this);
-	if (a->decl_var->hasMetadata<std::vector<std::string>>("attributes")) {
-		const auto &attributes = a->decl_var->getMetadata<std::vector<std::string>>("attributes");
-		for (auto attr: attributes) {
-			oss << " " << attr;
-		}
-	}
-	oss << " ";
-	oss << a->decl_var->var_name;
-	if (a->init_expr == nullptr) {
-		oss << ";";
-	} else {
-		oss << " = ";
-		a->init_expr->accept(this);
-		oss << ";";
-	}
+  a->decl_var->var_type->accept(this);
+  ss << last;
+  if (a->decl_var->hasMetadata<std::vector<std::string>>("attributes")) {
+    const auto &attributes = a->decl_var->getMetadata<std::vector<std::string>>("attributes");
+    for (auto attr: attributes) {
+      ss << " " << attr;
+    }
+  }
+  ss << " ";
+  ss << a->decl_var->var_name;
+  if (a->init_expr == nullptr) {
+    ss << ";";
+  } else {
+    ss << " = ";
+    a->init_expr->accept(this);
+    ss << last;
+    ss << ";";
+  }
+  last = ss.str();
 }
 void c_code_generator::visit(if_stmt::Ptr a) {
-	oss << "if (";
-	a->cond->accept(this);
-	oss << ")";
-	if (isa<stmt_block>(a->then_stmt)) {
-		oss << " ";
-		a->then_stmt->accept(this);
-		oss << " ";
-	} else {
-		oss << std::endl;
-		curr_indent++;
-		printer::indent(oss, curr_indent);
-		a->then_stmt->accept(this);
-		oss << std::endl;
-		curr_indent--;
-	}
+  std::stringstream ss;
+  ss << "if (";
+  a->cond->accept(this);
+  ss << last;
+  ss << ")";
+  if (isa<stmt_block>(a->then_stmt)) {
+    ss << " ";
+    a->then_stmt->accept(this);
+    ss << last;
+    ss << " ";
+  } else {
+    ss << std::endl;
+    curr_indent++;
+    printer::indent(ss, curr_indent);
+    a->then_stmt->accept(this);
+    ss << last;
+    ss << std::endl;
+    curr_indent--;
+  }
 
-	if (isa<stmt_block>(a->else_stmt)) {
-		if (to<stmt_block>(a->else_stmt)->stmts.size() == 0)
-			return;
-		oss << "else";
-		oss << " ";
-		a->else_stmt->accept(this);
-	} else {
-		oss << "else";
-		oss << std::endl;
-		curr_indent++;
-		printer::indent(oss, curr_indent);
-		a->else_stmt->accept(this);
-		curr_indent--;
-	}
+  if (isa<stmt_block>(a->else_stmt)) {
+    if (to<stmt_block>(a->else_stmt)->stmts.size() == 0) {
+      last = ss.str();
+      return;
+    }
+    ss << "else";
+    ss << " ";
+    a->else_stmt->accept(this);
+    ss << last;
+  } else {
+    ss << "else";
+    ss << std::endl;
+    curr_indent++;
+    printer::indent(ss, curr_indent);
+    a->else_stmt->accept(this);
+    ss << last;
+    curr_indent--;
+  }
+  last = ss.str();
 }
 void c_code_generator::visit(while_stmt::Ptr a) {
-	oss << "while (";
-	a->cond->accept(this);
-	oss << ")";
-	if (isa<stmt_block>(a->body)) {
-		oss << " ";
-		a->body->accept(this);
-	} else {
-		oss << std::endl;
-		curr_indent++;
-		printer::indent(oss, curr_indent);
-		a->body->accept(this);
-		curr_indent--;
-	}
+  std::stringstream ss;
+  ss << "while (";
+  a->cond->accept(this);
+  ss << last;
+  ss << ")";
+  if (isa<stmt_block>(a->body)) {
+    ss << " ";
+    a->body->accept(this);
+    ss << last;
+  } else {
+    ss << std::endl;
+    curr_indent++;
+    printer::indent(ss, curr_indent);
+    a->body->accept(this);
+    ss << last;
+    curr_indent--;
+  }
+  last = ss.str();
 }
 void c_code_generator::visit(for_stmt::Ptr a) {
-	oss << "for (";
-	a->decl_stmt->accept(this);
-	oss << " ";
-	a->cond->accept(this);
-	oss << "; ";
-	a->update->accept(this);
-	oss << ")";
-	if (isa<stmt_block>(a->body)) {
-		oss << " ";
-		a->body->accept(this);
-	} else {
-		oss << std::endl;
-		curr_indent++;
-		printer::indent(oss, curr_indent);
-		a->body->accept(this);
-		curr_indent--;
-	}
+  std::stringstream ss;
+  ss << "for (";
+  a->decl_stmt->accept(this);
+  ss << last;
+  ss << " ";
+  a->cond->accept(this);
+  ss << last;
+  ss << "; ";
+  a->update->accept(this);
+  ss << last;
+  ss << ")";
+  if (isa<stmt_block>(a->body)) {
+    ss << " ";
+    a->body->accept(this);
+    ss << last;
+  } else {
+    ss << std::endl;
+    curr_indent++;
+    printer::indent(ss, curr_indent);
+    a->body->accept(this);
+    ss << last;
+    curr_indent--;
+  }
+  last = ss.str();
 }
-void c_code_generator::visit(break_stmt::Ptr a) { oss << "break;"; }
-void c_code_generator::visit(continue_stmt::Ptr a) { oss << "continue;"; }
+void c_code_generator::visit(break_stmt::Ptr a) { last = "break;"; }
+void c_code_generator::visit(continue_stmt::Ptr a) { last = "continue;"; }
 void c_code_generator::visit(sq_bkt_expr::Ptr a) {
-	if (expr_needs_bracket(a->var_expr)) {
-		oss << "(";
-	}
-	a->var_expr->accept(this);
-	if (expr_needs_bracket(a->var_expr)) {
-		oss << ")";
-	}
-	oss << "[";
-	a->index->accept(this);
-	oss << "]";
+  std::stringstream ss;
+  if (expr_needs_bracket(a->var_expr)) {
+    ss << "(";
+  }
+  a->var_expr->accept(this);
+  ss << last;
+  if (expr_needs_bracket(a->var_expr)) {
+    ss << ")";
+  }
+  ss << "[";
+  a->index->accept(this);
+  ss << last;
+  ss << "]";
+  last = ss.str();
 }
 void c_code_generator::visit(function_call_expr::Ptr a) {
-	if (expr_needs_bracket(a->expr1)) {
-		oss << "(";
-	}
-	a->expr1->accept(this);
-	if (expr_needs_bracket(a->expr1)) {
-		oss << ")";
-	}
-	oss << "(";
-	for (unsigned int i = 0; i < a->args.size(); i++) {
-		a->args[i]->accept(this);
-		if (i != a->args.size() - 1)
-			oss << ", ";
-	}
-	oss << ")";
+  std::stringstream ss;
+  if (expr_needs_bracket(a->expr1)) {
+    ss << "(";
+  }
+  a->expr1->accept(this);
+  ss << last;
+  if (expr_needs_bracket(a->expr1)) {
+    ss << ")";
+  }
+  ss << "(";
+  for (unsigned int i = 0; i < a->args.size(); i++) {
+    a->args[i]->accept(this);
+    ss << last;
+    if (i != a->args.size() - 1)
+      ss << ", ";
+  }
+  ss << ")";
+  last = ss.str();
 }
 void c_code_generator::visit(initializer_list_expr::Ptr a) {
-	oss << "{";
-	for (unsigned int i = 0; i < a->elems.size(); i++) {
-		a->elems[i]->accept(this);
-		if (i != a->elems.size() - 1)
-			oss << ", ";
-	}
-	oss << "}";
+  std::stringstream ss;
+  ss << "{";
+  for (unsigned int i = 0; i < a->elems.size(); i++) {
+    a->elems[i]->accept(this);
+    ss << last;
+    if (i != a->elems.size() - 1)
+      ss << ", ";
+  }
+  ss << "}";
+  last = ss.str();
 }
 void c_code_generator::handle_func_arg(var::Ptr a) {
-	function_type::Ptr type =
-		to<function_type>(a->var_type);
-	type->return_type->accept(this);
-	oss << " (*";
-	oss << a->var_name;
-	oss << ")(";
-	for (unsigned int i = 0; i < type->arg_types.size(); i++) {
-		type->arg_types[i]->accept(this);
-		if (i != type->arg_types.size() - 1)
-			oss << ", ";
-	}
-	oss << ")";
-	return;
+  std::stringstream ss;
+  function_type::Ptr type =
+    to<function_type>(a->var_type);
+  type->return_type->accept(this);
+  ss << last;
+  ss << " (*";
+  ss << a->var_name;
+  ss << ")(";
+  for (unsigned int i = 0; i < type->arg_types.size(); i++) {
+    type->arg_types[i]->accept(this);
+    ss << last;
+    if (i != type->arg_types.size() - 1)
+      ss << ", ";
+  }
+  ss << ")";
+  last = ss.str();
 }
 void c_code_generator::visit(func_decl::Ptr a) {
-	a->return_type->accept(this);
-	if (a->hasMetadata<std::vector<std::string>>("attributes")) {
-		const auto &attributes = a->getMetadata<std::vector<std::string>>("attributes");
-		for (auto attr: attributes) {
-			oss << " " << attr;
-		}
-	}
-	oss << " " << a->func_name;
-	oss << " (";
-	bool printDelim = false;
-	for (auto arg : a->args) {
-		if (printDelim)
-			oss << ", ";
-		printDelim = true;
-		if (isa<function_type>(arg->var_type)) {
-			handle_func_arg(arg);
-		} else {
-			arg->var_type->accept(this);
-			oss << " " << arg->var_name;
-		}
-	}
-	if (!printDelim)
-		oss << "void";
-	oss << ")";
-	if (isa<stmt_block>(a->body)) {
-		oss << " ";
-		a->body->accept(this);
-		oss << std::endl;
-	} else {
-		oss << std::endl;
-		curr_indent++;
-		printer::indent(oss, curr_indent);
-		a->body->accept(this);
-		oss << std::endl;
-		curr_indent--;
-	}
+  std::stringstream ss;
+  a->return_type->accept(this);
+  ss << last;
+  if (a->hasMetadata<std::vector<std::string>>("attributes")) {
+    const auto &attributes = a->getMetadata<std::vector<std::string>>("attributes");
+    for (auto attr: attributes) {
+      ss << " " << attr;
+    }
+  }
+  ss << " " << a->func_name;
+  ss << " (";
+  bool printDelim = false;
+  for (auto arg : a->args) {
+    if (printDelim)
+      ss << ", ";
+    printDelim = true;
+    if (isa<function_type>(arg->var_type)) {
+      handle_func_arg(arg);
+    } else {
+      arg->var_type->accept(this);
+      ss << last;
+      ss << " " << arg->var_name;
+    }
+  }
+  if (!printDelim)
+    ss << "void";
+  ss << ")";
+  if (isa<stmt_block>(a->body)) {
+    ss << " ";
+    a->body->accept(this);
+    ss << last;
+    ss << std::endl;
+  } else {
+    ss << std::endl;
+    curr_indent++;
+    printer::indent(ss, curr_indent);
+    a->body->accept(this);
+    ss << last;
+    ss << std::endl;
+    curr_indent--;
+  }
+  last = ss.str();
 }
 void c_code_generator::visit(goto_stmt::Ptr a) { 
-	//a->dump(oss, 1); 
-	oss << "goto ";
-	oss << a->label1->label_name << ";";
+  std::stringstream ss;
+  //a->dump(ss, 1); 
+  ss << "goto ";
+  ss << a->label1->label_name << ";";
+  last = ss.str();
 }
 void c_code_generator::visit(label_stmt::Ptr a) { 
-	oss << a->label1->label_name << ":";
+  std::stringstream ss;
+  ss << a->label1->label_name << ":";
+  last = ss.str();
 }
 void c_code_generator::visit(return_stmt::Ptr a) {
-	oss << "return ";
-	a->return_val->accept(this);
-	oss << ";";
+  std::stringstream ss;
+  ss << "return ";
+  a->return_val->accept(this);
+  ss << last;
+  ss << ";";
+  last = ss.str();
 }
 void c_code_generator::visit(member_access_expr::Ptr a) {
-	if (isa<sq_bkt_expr>(a->parent_expr)) {
-		sq_bkt_expr::Ptr parent = to<sq_bkt_expr>(a->parent_expr);
-		if (isa<int_const>(parent->index)) {
-			auto index = to<int_const>(parent->index);
-			if (index->value == 0) {
-				if (!isa<var_expr>(parent->var_expr)) {
-					oss << "(";
-				}
-				parent->var_expr->accept(this);
-				if (!isa<var_expr>(parent->var_expr)) {
-					oss << ")";
-				}
-				oss << "->" << a->member_name;	
-				return;
-			}
-		}
+  std::stringstream ss;
+  if (isa<sq_bkt_expr>(a->parent_expr)) {
+    sq_bkt_expr::Ptr parent = to<sq_bkt_expr>(a->parent_expr);
+    if (isa<int_const>(parent->index)) {
+      auto index = to<int_const>(parent->index);
+      if (index->value == 0) {
+	if (!isa<var_expr>(parent->var_expr)) {
+	  ss << "(";
 	}
+	parent->var_expr->accept(this);
+	ss << last;
+	if (!isa<var_expr>(parent->var_expr)) {
+	  ss << ")";
+	}
+	ss << "->" << a->member_name;	
+	last = ss.str();
+	return;
+      }
+    }
+  }
 
-	if (!isa<var_expr>(a->parent_expr))
-		oss << "(";
-	a->parent_expr->accept(this);
-	if (!isa<var_expr>(a->parent_expr))
-		oss << ")";
+  if (!isa<var_expr>(a->parent_expr))
+    ss << "(";
+  a->parent_expr->accept(this);
+  ss << last;
+  if (!isa<var_expr>(a->parent_expr))
+    ss << ")";
 
-	oss << "." << a->member_name;
+  ss << "." << a->member_name;
+  last = ss.str();
 }
 void c_code_generator::visit(addr_of_expr::Ptr a) {
-	oss << "(&(";
-	a->expr1->accept(this);
-	oss << "))";
+  std::stringstream ss;
+  ss << "(&(";
+  a->expr1->accept(this);
+  ss << last;
+  ss << "))";
+  last = ss.str();
 }
 } // namespace block
